@@ -1,0 +1,175 @@
+ rm(list = ls())
+ library(dplyr)
+ library(ggplot2)
+ library(lattice)
+
+# Define the path to the data file
+file_path <- file.path(getwd(), "activity data") #, stringsAsFactors = FALSE))
+
+# Read data from file
+data <- read.csv(file.path(file_path, "activity.csv"))
+
+# total number of steps taken per day
+total_steps_day <- data %>% group_by(date) %>% summarize(total = sum(steps, na.rm = TRUE))
+
+# Initialize device
+png(file = "hist1.png")
+
+# Histogram of the total number of steps taken per day
+hist(total_steps_day$total, xaxt = "n", main = "Total Number of Steps Taken per Day", xlab = "Total daily steps", col = "magenta")
+axis(side=1, at=seq(0,20000, 1000))
+
+# Calculate the mean of the total number of steps taken per day
+mean_total_daily_steps <- mean(total_steps_day$total)
+
+# Calculate the median of the total number of steps taken per day
+median_total_daily_steps <- median(total_steps_day$total)
+
+# Report on graph legend the mean of the total number of steps taken per day
+legend('topleft',legend=parse(text=sprintf('paste(mean,\' = %s\')',mean_total_daily_steps)),bty='n', cex = 0.70);
+
+# Report on graph legend the median of the total number of steps taken per day
+legend('topright',legend=parse(text=sprintf('paste(median,\' = %s\')',median_total_daily_steps)),bty='n', cex = 0.70) 
+
+dev.off()
+
+average_daily_steps <- tapply(data$steps, data$interval, mean, na.rm = TRUE)
+
+png(file = "time_series.png")
+
+# Plot a time series of the average number of steps averaged across all days versus
+# the 5 minutes interval
+plot(row.names(average_daily_steps), average_daily_steps, type = "l", xlab = "5 minutes interval", ylab = "Average Across all Days", main = "Average Number of Steps Taken", col = "blue")
+
+dev.off()
+
+# Wich 5 minute interval on average across all days inthe data set contains the 
+# maximum number of steps
+max_interval <- which.max(average_daily_steps)
+#names(max_interval)
+
+# Calculate and report the total number of missing values in the data set
+# (i.e The total number of rows with NAs)
+data_rows_with_NA <- sum(is.na(data))
+data_rows_with_NA
+
+# Calculate a mean value of steps per interval to input missing values
+average_steps_in_interval <- data %>% group_by(interval) %>% summarize(total = mean(steps, na.rm = TRUE))
+
+# Declare a vector of type numeric to store the inputed and non-inputed number of steps
+noNA_data <- numeric()
+
+# Iterate through the data and substitute NA values by the mean value of steps on a 5 minute interval
+for(i in 1:nrow(data)){
+	row <- data[i ,]
+	if(is.na(row$steps)){
+		steps <- subset(average_steps_in_interval, interval == row$interval)$total
+	}else{
+		steps <- row$steps
+	}
+      noNA_data <- c(noNA_data, steps)
+}
+
+# Copy data into new data frame
+new_data <- data
+
+# Insert inputed values into new data set steps variable
+new_data$steps <- noNA_data
+
+# Total number of steps taken each day
+total_steps_day <- new_data %>% group_by(date) %>% summarize(total = sum(steps, na.rm = TRUE))
+
+# Mean of the number of steps taken each day
+Mean = mean(total_steps_day$total)
+
+# Median of the total number of steps taken each day
+Median = median(total_steps_day$total)
+
+png(file = "hist2.png")
+
+# Histogram of he total number of steps taken each day
+hist(total_steps_day$total, main = "Total Daily Steps", xlab = "Day", ylab = "Total", col = "magenta")
+
+# Report in the histogram legend the mean of steps taken each day
+legend('topleft',legend=parse(text=sprintf('paste(mean,\' = %s\')',Mean)),bty='n', cex = 0.70);
+
+# Report in the histogram legen the median number of steps taken each day
+legend('topright',legend=parse(text=sprintf('paste(median,\' = %s\')',Median)),bty='n', cex = 0.70) 
+
+dev.off()
+
+# What is the impact of imputing missing data on the estimates of the total 
+# daily number of steps? The shape of the distribution changes completely
+
+# Convert dates to days of the week
+week_days <- weekdays(as.Date(new_data$date))
+
+# Declalre a vector to store the weekdays and weekends
+day <- vector()
+
+# if the day of the week is Saturday or Sunday store weekend else store weekday
+# in the day vector
+for(i in 1:nrow(new_data)){
+	if(week_days[i] == "Saturday"){
+		day[i] = "Weekend"
+
+	}else if(week_days[i] == "Sunday"){
+		day[i] = "Weekend"
+
+	}else{ 
+		day[i] = "Weekday"
+	}
+
+}
+
+# Add the day vector to the new_data dataframe
+new_data = mutate(new_data, day = day)
+
+# Calculate the average number of steps taken each day
+average <- new_data %>% group_by(interval, day) %>% summarize(steps = mean(steps, na.rm = TRUE))
+
+# Calculate the median number of steps taken each day
+median <- new_data %>% group_by(interval, day) %>% summarize(steps = median(steps, na.rm = TRUE))
+
+# ARE THERE DIFFERENCES IN ACTIVITY PATTERNS BETWEEN WEEKDAYS AND WEEKENDS
+
+png(file = "week_weekends_base_plot.png")
+
+# Plot the average number of steps taken across all days verus the 5 minutes interval
+# using base plotting system
+plot(average$interval, average$steps, xlab = "Five Minutes Interval", ylab = "Average Number of Steps",type = 'n')
+
+# Extract the set with weekday factor variable
+get_day  <- filter(average, day == "Weekday")
+
+# Extract the set with the weekend factor variable
+get_weekend <- filter(average, day == "Weekend")
+lines(get_day$interval, get_day$steps, col = "green")
+lines(get_weekend$interval, get_weekend$steps, col = "blue")
+legend("topright", c("Weekday", "Weekend"), lty = c(1,1), col = c("green", "blue"))
+
+dev.off()
+
+
+png(file = "weekdays_weekend_gplot.png")
+
+# Plot the average number of steps taken across all days versus 5 minute intervals
+# Using the ggplot2 graphics system
+p <- ggplot(average, aes(interval, steps)) + geom_line(aes(color = day))
+
+# Display ggplot
+print(p)
+
+dev.off()
+
+png(file = "weekday_weekend_lattice.png")
+
+# Plot the average number of steps taken across all days versus the 5 minute intervals
+# using lattice system (panel plot)
+pl <- xyplot(steps ~ interval | factor(day), average, type = "l", layout = c(1,2))
+
+# Display plot
+print(pl)
+
+dev.off()
+
